@@ -1,533 +1,1620 @@
+# Comprehensive Database Administrator Interview Guide
 
-# SQL Questions 
+## 1. Batch, Script, and Transaction
 
-**I. Basic Database Concepts and Terminology**
+### Batch
+A batch in SQL Server is a group of one or more Transact-SQL statements processed together as a single unit. 
 
-*   **Data - DB - RDBMS - DB System:**
-    *   **Data:** Raw, unprocessed facts, figures, and symbols.
-    *   **Database (DB):** An organized collection of structured data, typically stored and accessed electronically from a computer system.
-    *   **Relational Database Management System (RDBMS):** A software system used to manage relational databases. It organizes data into tables with rows (records) and columns (attributes) and establishes relationships between these tables. Examples: SQL Server, MySQL, Oracle, PostgreSQL.
-    *   **Database System:** The complete environment including the database, RDBMS, hardware, software, users, and applications that interact with the database.
+Example:
+```sql
+-- Batch example
+BEGIN
+    DECLARE @Count INT
+    SET @Count = (SELECT COUNT(*) FROM Students)
+    PRINT 'Total Students: ' + CAST(@Count AS VARCHAR(10))
+    
+    UPDATE Students 
+    SET Status = 'Active' 
+    WHERE EnrollmentDate < GETDATE()
+END
+```
 
-*   **Entity – Attributes – Relationship:** These are fundamental concepts in database modeling (ERD - Entity-Relationship Diagram).
-    *   **Entity:** A real-world object or concept about which data is stored (e.g., Student, Course, Employee).
-    *   **Attributes:** Characteristics or properties of an entity (e.g., Student has attributes like StudentID, Name, Major).
-    *   **Relationship:** An association between entities (e.g., a Student *enrolls in* a Course). Relationships can be one-to-one, one-to-many, or many-to-many.
+### Script
+A script is a collection of SQL statements saved in a file, typically used for database management, schema creation, or data manipulation.
 
-*   **ERD (Entity-Relationship Diagram) and EERD (Enhanced Entity-Relationship Diagram):**
-    *   **ERD:** A visual representation of entities, their attributes, and the relationships between them.
-    *   **EERD:** An extension of the ERD model that incorporates more complex concepts like inheritance (supertype/subtype entities), specialization, generalization, and categories.
+Example:
+```sql
+-- Database creation script
+USE master
+GO
 
-*   **Super Entity and Sub Entity (Specialization, Disjoint, Overlap):**
-    *   **Super Entity:** A general entity type (e.g., Employee).
-    *   **Sub Entity:** A more specific entity type that inherits attributes from the super entity (e.g., SalariedEmployee, HourlyEmployee, which inherit from Employee).
-    *   **Specialization:** The process of creating sub entities from a super entity.
-    *   **Disjoint:** A constraint indicating that a super entity instance can belong to only one sub entity (e.g., an employee can be either salaried or hourly, not both).
-    *   **Overlap:** A constraint indicating that a super entity instance can belong to multiple sub entities.
+CREATE DATABASE UniversityDB
+ON PRIMARY 
+(
+    NAME = 'UniversityDB_Primary',
+    FILENAME = 'C:\Databases\UniversityDB_Primary.mdf',
+    SIZE = 100MB,
+    MAXSIZE = UNLIMITED,
+    FILEGROWTH = 10%
+)
+LOG ON 
+(
+    NAME = 'UniversityDB_Log',
+    FILENAME = 'C:\Databases\UniversityDB_Log.ldf',
+    SIZE = 50MB,
+    MAXSIZE = 2GB,
+    FILEGROWTH = 10%
+)
+```
 
-*   **Normalization:** The process of organizing data in a database to reduce redundancy and improve data integrity. It involves dividing larger tables into smaller tables and defining relationships between them. Normal forms (1NF, 2NF, 3NF, BCNF) define specific rules for achieving normalization.
+### Transaction
+A transaction is a sequence of database operations that are treated as a single logical unit of work.
 
-*   **Functional Dependency:** A constraint between two attributes in a relation. Attribute B is functionally dependent on attribute A if each value of A determines exactly one value of B.
+Example:
+```sql
+-- Transaction example
+BEGIN TRANSACTION StudentRegistration
 
-*   **DML Anomalies (Insertion, Update, Deletion):** Problems that can arise in unnormalized databases due to data redundancy.
-    *   **Insertion Anomaly:** Difficulty inserting new data without also inserting redundant data.
-    *   **Update Anomaly:** Difficulty updating data without having to update multiple rows.
-    *   **Deletion Anomaly:** Unintentional loss of data when deleting a row that contains information about multiple entities.
+BEGIN TRY
+    INSERT INTO Students (StudentName, Email) VALUES ('John Doe', 'john@example.com')
+    INSERT INTO Enrollments (StudentID, CourseID) VALUES (SCOPE_IDENTITY(), 101)
+    
+    COMMIT TRANSACTION
+    PRINT 'Student registered successfully'
+END TRY
+BEGIN CATCH
+    ROLLBACK TRANSACTION
+    PRINT 'Error in student registration'
+END CATCH
+```
 
-*   **DB Mapping and Its Steps:** The process of translating a conceptual database design (ERD) into a logical database schema (tables and relationships in a specific RDBMS). The steps typically involve:
-    1.  Mapping entities to tables.
-    2.  Mapping attributes to columns.
-    3.  Mapping relationships to foreign keys.
-    4.  Resolving many-to-many relationships using junction tables.
+## 2. ACID Properties
 
-*   **DB Life Cycle:** The stages a database goes through from planning to decommissioning:
-    1.  Requirements Gathering
-    2.  Design (Conceptual, Logical, Physical)
-    3.  Implementation
-    4.  Deployment
-    5.  Maintenance
-    6.  Decommissioning
+ACID is a set of properties that guarantee database transaction reliability:
 
-*   **DB System vs. File System:**
-    *   **File System:** Stores data in files and folders. Limited data organization and retrieval capabilities.
-    *   **Database System:** Stores data in a structured format within a database. Provides efficient data access, manipulation, and management features through an RDBMS.
+### Atomicity
+- Ensures all operations in a transaction are completed or none are
+- Example: Money transfer between bank accounts must complete entirely or not at all
 
-*   **DB Users:** Different roles that interact with a database:
-    *   **Database Administrator (DBA):** Manages the database system, including security, performance, and backups.
-    *   **Application Developers:** Create applications that interact with the database.
-    *   **End Users:** Access and use the data through applications.
+### Consistency
+- Maintains database integrity by ensuring transactions move from one valid state to another
+- Example: Enforcing referential integrity constraints
 
-Okay, let's continue with the next set of questions, focusing on SQL-related concepts and database objects.
+### Isolation
+- Prevents interference between concurrent transactions
+- Ensures transactions are processed independently
 
-**II. SQL Fundamentals and Database Objects**
+### Durability
+- Guarantees that once a transaction is committed, it remains permanent
+- Typically implemented through transaction logs and backup mechanisms
 
-*   **Batch, Script, and Transaction:**
-    *   **Batch:** A set of SQL statements executed together as a single unit. If one statement fails, subsequent statements in the batch may still execute.
-    *   **Script:** A file containing one or more SQL statements, often used for automating database tasks. Scripts can contain batches.
-    *   **Transaction:** A sequence of database operations performed as a single logical unit of work. Transactions are atomic, meaning they either fully succeed or fully fail, ensuring data consistency.
+## 3. Cursor
+A database object that allows row-by-row processing of query results.
 
-*   **ACID Properties (Atomicity, Consistency, Isolation, Durability):** Fundamental properties of database transactions:
-    *   **Atomicity:** All operations within a transaction are treated as a single unit. Either all changes are made, or none are.
-    *   **Consistency:** A transaction maintains the database's integrity constraints, moving it from one valid state to another.
-    *   **Isolation:** Concurrent transactions are isolated from each other, preventing interference and data corruption.
-    *   **Durability:** Once a transaction is committed, the changes are permanent and survive system failures.
+Example:
+```sql
+DECLARE @StudentName NVARCHAR(100)
+DECLARE StudentCursor CURSOR FOR 
+    SELECT Name FROM Students
 
-*   **Cursor:** A database object that allows you to process the result set of a query row by row. Cursors are useful for performing complex operations on each row of a result set, but they can be less efficient than set-based operations.
+OPEN StudentCursor
+FETCH NEXT FROM StudentCursor INTO @StudentName
 
-    ```sql
-    -- Example (SQL Server)
-    DECLARE @StudentID INT, @StudentName VARCHAR(255);
-    DECLARE student_cursor CURSOR FOR
-    SELECT StudentID, Name FROM Students;
+WHILE @@FETCH_STATUS = 0
+BEGIN
+    PRINT 'Processing Student: ' + @StudentName
+    FETCH NEXT FROM StudentCursor INTO @StudentName
+END
 
-    OPEN student_cursor;
+CLOSE StudentCursor
+DEALLOCATE StudentCursor
+```
 
-    FETCH NEXT FROM student_cursor INTO @StudentID, @StudentName;
+## 4. Types of DB Backup
 
-    WHILE @@FETCH_STATUS = 0
+1. **Full Backup**: Complete database backup
+2. **Differential Backup**: Captures changes since last full backup
+3. **Transaction Log Backup**: Backs up database transaction logs
+4. **Incremental Backup**: Backs up only changed data since last backup
+5. **Copy-Only Backup**: Does not affect backup sequence
+
+## 5. Identity Columns
+
+### Writing Values
+- By default, you cannot directly insert values into identity columns
+- Use `SET IDENTITY_INSERT ON` to allow manual insertion
+
+```sql
+SET IDENTITY_INSERT Students ON
+INSERT INTO Students (StudentID, Name) VALUES (1000, 'John Doe')
+SET IDENTITY_INSERT Students OFF
+```
+
+### Resetting Identity
+```sql
+-- Reset identity seed
+DBCC CHECKIDENT('TableName', RESEED, 0)
+```
+
+## 6. Database Job
+Scheduled tasks in SQL Server for automated maintenance:
+- Backup strategies
+- Index maintenance
+- Database integrity checks
+- Reporting generation
+
+## 7. Insert Statement Types
+
+1. **Standard Insert**
+```sql
+INSERT INTO Students (Name, Email) VALUES ('John', 'john@example.com')
+```
+
+2. **Bulk Insert**
+```sql
+BULK INSERT Students
+FROM 'C:\Students.csv'
+WITH (FIELDTERMINATOR = ',', ROWTERMINATOR = '\n')
+```
+
+3. **Insert with Select**
+```sql
+INSERT INTO StudentArchive
+SELECT * FROM Students WHERE GraduationYear < 2020
+```
+
+4. **Multiple Row Insert**
+```sql
+INSERT INTO Students (Name, Email)
+VALUES 
+    ('John', 'john@example.com'),
+    ('Jane', 'jane@example.com')
+```
+
+5. **Default Insert**
+```sql
+INSERT INTO Students DEFAULT VALUES
+```
+
+# Database Administrator Interview Guide (Continued)
+
+## 8. Snapshot
+A snapshot is a read-only, point-in-time view of a database that captures the state of data at a specific moment.
+
+Key Characteristics:
+- Provides a static view of data
+- Useful for reporting and historical analysis
+- Minimal storage overhead
+- Does not impact original database performance
+
+Example Creation:
+```sql
+-- Create database snapshot
+CREATE DATABASE StudentDB_Snapshot
+ON 
+(
+    NAME = StudentDB_Data,
+    FILENAME = 'C:\Snapshots\StudentDB_Snapshot.mdf'
+)
+AS SNAPSHOT OF StudentDB
+```
+
+## 9. SQLCLR (SQL Common Language Runtime)
+SQLCLR enables integration of .NET Framework languages with SQL Server, allowing:
+- Complex calculations
+- Custom data types
+- Advanced string manipulations
+- External language integration
+
+Example (C# CLR Function):
+```csharp
+[Microsoft.SqlServer.Server.SqlFunction]
+public static SqlInt32 CalculateStudentAge(SqlDateTime birthDate)
+{
+    return DateTime.Now.Year - birthDate.Value.Year;
+}
+```
+
+## 10. SQL Injection
+A code injection technique where malicious SQL statements are inserted into application entry points.
+
+Prevention Techniques:
+- Parameterized Queries
+- Input Validation
+- Stored Procedures
+- Least Privilege Principle
+
+Vulnerable Code:
+```sql
+-- Vulnerable
+string query = "SELECT * FROM Users WHERE Username = '" + username + "' AND Password = '" + password + "'";
+
+-- Secure Parameterized Query
+string query = "SELECT * FROM Users WHERE Username = @Username AND Password = @Password";
+```
+
+## 11. Red Gate
+A suite of SQL Server tools for:
+- Database development
+- Performance monitoring
+- Backup and recovery
+- Schema comparison
+- Data generation
+
+## 12. Data Quality Services (DQS)
+Microsoft SQL Server component for:
+- Data cleansing
+- Matching
+- Profiling
+- Knowledge discovery
+
+Workflow:
+1. Knowledge Discovery
+2. Domain Management
+3. Cleansing
+4. Matching
+5. Export Results
+
+## 13. XML in SQL Server
+XML (eXtensible Markup Language) support includes:
+- Storage
+- Querying
+- Transformation
+
+Examples:
+```sql
+-- XML Data Type
+DECLARE @XMLData XML
+SET @XMLData = '<Students>
+    <Student>
+        <Name>John Doe</Name>
+        <Age>22</Age>
+    </Student>
+</Students>'
+
+-- XML Query
+SELECT 
+    T.c.value('Name[1]', 'VARCHAR(50)') AS StudentName,
+    T.c.value('Age[1]', 'INT') AS StudentAge
+FROM @XMLData.nodes('/Students/Student') T(c)
+```
+
+## 14. Triggers
+Database objects that automatically execute in response to specific database events.
+
+Types:
+- INSTEAD OF Trigger
+- AFTER Trigger
+
+Prevention Friday Insertion Trigger:
+```sql
+CREATE TRIGGER PreventFridayInsertion
+ON Students
+FOR INSERT
+AS
+BEGIN
+    IF DATEPART(dw, GETDATE()) = 6  -- Friday
     BEGIN
-        PRINT 'ID: ' + CAST(@StudentID AS VARCHAR) + ', Name: ' + @StudentName;
-        FETCH NEXT FROM student_cursor INTO @StudentID, @StudentName;
+        ROLLBACK TRANSACTION
+        RAISERROR('Cannot insert records on Friday', 16, 1)
     END
-
-    CLOSE student_cursor;
-    DEALLOCATE student_cursor;
-    ```
-
-*   **Write a query to display the names of students in one cell (Comma-separated):**
-
-    ```sql
-    -- Example (SQL Server using STRING_AGG - SQL Server 2017 and later)
-    SELECT STRING_AGG(Name, ',') AS StudentNames
-    FROM Students;
-
-    -- Older versions require more complex solutions using XML PATH or cursors.
-    ```
-
-*   **Types of DB Backup:**
-    *   **Full Backup:** Backs up the entire database.
-    *   **Differential Backup:** Backs up only the changes made since the last full backup.
-    *   **Transaction Log Backup:** Backs up the transaction log, which contains a record of all database transactions.
-
-*   **Can we write values on identity columns?** Generally, no. Identity columns are automatically generated by the database. However, in some cases, you can use `SET IDENTITY_INSERT table_name ON` to temporarily allow explicit inserts into an identity column. This is usually done for data migration or restoration purposes.
-
-*   **How to reset identity:**
-
-    ```sql
-    -- SQL Server
-    DBCC CHECKIDENT ('TableName', RESEED, new_seed_value);
-    -- If you want to restart from 1:
-    DBCC CHECKIDENT ('TableName', RESEED, 0);
-    ```
-
-*   **DB Job (SQL Server Agent Jobs):** Automated tasks scheduled to run on a database server. Jobs can perform various tasks like backups, index maintenance, data imports/exports, etc.
-
-*   **Types of INSERT statement (5):** (Variations, not distinct types)
-    1.  **Basic INSERT:** `INSERT INTO TableName (Column1, Column2) VALUES (Value1, Value2);`
-    2.  **INSERT with SELECT:** `INSERT INTO TableName (Column1, Column2) SELECT ColumnA, ColumnB FROM AnotherTable;`
-    3.  **INSERT with multiple rows:** `INSERT INTO TableName (Column1, Column2) VALUES (Value1, Value2), (Value3, Value4);`
-    4.  **INSERT with default values:** `INSERT INTO TableName DEFAULT VALUES;` (Inserts default values for all columns)
-    5.  **INSERT…OUTPUT (SQL Server):** Captures the inserted rows for further processing.
-
-*   **Snapshot:** A read-only, point-in-time copy of a database. Snapshots are often used for reporting or testing purposes.
-
-*   **SQLCLR (SQL Common Language Runtime):** Allows you to write stored procedures, functions, triggers, and other database objects using .NET languages like C# or VB.NET.
-
-*   **SQL Injection:** A security vulnerability that allows attackers to inject malicious SQL code into user inputs, potentially compromising the database. Parameterized queries or stored procedures should be used to prevent SQL injection.
-
-*   **Redgate:** A company that provides tools for SQL Server development, deployment, and administration, such as SQL Compare, SQL Data Compare, and SQL Source Control.
-
-*   **Data Quality Services (DQS - SQL Server):** A SQL Server feature that helps you cleanse and standardize data.
-
-*   **XML in SQL Server:** SQL Server supports storing and querying XML data using the `XML` data type and XQuery.
-
-Let's continue with the next set of questions, focusing on triggers, stored procedures, views, and other important database concepts.
-
-**III. Triggers, Stored Procedures, Views, and Related Concepts**
-
-*   **Trigger:** A special type of stored procedure that automatically executes in response to certain events on a table (e.g., INSERT, UPDATE, DELETE).
-
-*   **Create a trigger to prevent students from inserting data on Friday:**
-
-    ```sql
-    -- SQL Server
-    CREATE TRIGGER TR_PreventStudentInsertOnFriday
-    ON Students
-    INSTEAD OF INSERT -- or FOR INSERT if you want the insert to happen and then be rolled back
-    AS
-    BEGIN
-        IF DATENAME(WEEKDAY, GETDATE()) = 'Friday'
-        BEGIN
-            RAISERROR('Cannot insert students on Friday.', 16, 1)
-            ROLLBACK TRANSACTION -- Prevent the insert
-        END
-    END;
-    ```
-
-*   **Create a trigger to save any updates on student data in an `audit_students` table:**
-
-    ```sql
-    -- SQL Server
-    CREATE TABLE audit_students (
-        AuditID INT IDENTITY(1,1) PRIMARY KEY,
-        StudentID INT,
-        OldName VARCHAR(255),
-        NewName VARCHAR(255),
-        UpdateDate DATETIME DEFAULT GETDATE()
-    );
-
-    CREATE TRIGGER TR_AuditStudentUpdates
-    ON Students
-    AFTER UPDATE
-    AS
-    BEGIN
-        INSERT INTO audit_students (StudentID, OldName, NewName)
-        SELECT i.StudentID, d.Name, i.Name
-        FROM inserted i
-        INNER JOIN deleted d ON i.StudentID = d.StudentID
-        WHERE i.Name <> d.Name; -- Only audit changes to the Name column
-    END;
-    ```
-
-*   **Steps to run a query (Execution Plan):** The process a database server goes through to execute a query:
-    1.  **Parsing:** Checks the syntax of the SQL statement.
-    2.  **Binding:** Resolves object names (tables, columns, etc.).
-    3.  **Optimization:** The query optimizer determines the most efficient execution plan.
-    4.  **Execution:** The query is executed according to the chosen plan.
-
-*   **Stored Procedure (SP) and its properties:** A precompiled collection of SQL statements stored in the database.
-    *   **Properties:**
-        *   **Precompiled:** Improves performance.
-        *   **Modular:** Encapsulates logic.
-        *   **Reusable:** Can be called multiple times.
-        *   **Security:** Can be used to grant permissions to execute specific tasks without granting direct access to tables.
-
-*   **Types of Stored Procedures:**
-    *   **User-defined stored procedures:** Created by users for specific tasks.
-    *   **System stored procedures:** Provided by the database system for administrative tasks.
-
-*   **Does the SP have return values?** Yes, stored procedures can return values using:
-    *   **Return codes:** Integer values indicating success or failure.
-    *   **Output parameters:** Parameters that can be modified within the stored procedure and their values returned to the caller.
-    *   **Result sets:** The result of a `SELECT` statement within the stored procedure.
-
-*   **Difference between SP and Triggers:**
-    *   **Execution:** SPs are explicitly called; triggers are automatically executed in response to events.
-    *   **Purpose:** SPs are for general-purpose database tasks; triggers are for enforcing business rules and maintaining data integrity.
-
-*   **Merge Statement and its syntax:** Performs insert, update, or delete operations on a target table based on the results of a join with a source table.
-
-    ```sql
-    MERGE TargetTable AS Target
-    USING SourceTable AS Source
-    ON (Target.KeyColumn = Source.KeyColumn)
-    WHEN MATCHED THEN
-        UPDATE SET Target.Column1 = Source.Column1, ...
-    WHEN NOT MATCHED BY TARGET THEN
-        INSERT (Column1, ...) VALUES (Source.Column1, ...)
-    WHEN NOT MATCHED BY SOURCE THEN
-        DELETE;
-    ```
-
-*   **View:** A virtual table based on the result-set of an SQL statement. Views do not store data themselves; they simply provide a customized view of data from one or more tables.
-
-*   **Types of Views (3):**
-    *   **Standard Views:** Simple views based on a single `SELECT` statement.
-    *   **Indexed Views (Materialized Views in some databases):** Views that are physically stored in the database, improving query performance.
-    *   **Partitioned Views:** Views that combine data from horizontally partitioned tables.
-
-*   **Can we insert, update, and delete data from a view?** Yes, under certain conditions. Simple views (without aggregations, `DISTINCT`, `GROUP BY`, etc.) allow DML operations that are translated to the underlying base tables. More complex views might restrict certain operations.
-
-*   **Rollup and Cube, Grouping Sets:** Used for generating summary data at different levels of aggregation.
-    *   **Rollup:** Creates subtotals for each level of a hierarchy.
-    *   **Cube:** Creates subtotals for all possible combinations of grouping columns.
-    *   **Grouping Sets:** Allows specifying custom sets of grouping columns.
-
-*   **Pivot and Unpivot:**
-    *   **Pivot:** Rotates rows into columns.
-    *   **Unpivot:** Rotates columns into rows.
-
-Let's continue with the remaining questions, covering indexes, database administration tools, database files, data types, and other important topics.
-
-**IV. Indexes, Database Administration, Data Types, and Other Concepts**
-
-*   **Index:** A data structure that improves the speed of data retrieval operations on a table. Indexes are similar to an index in a book, allowing you to quickly locate specific data.
-
-*   **Types of Index:**
-    *   **Clustered Index:** Determines the physical order of data in the table. There can be only one clustered index per table.
-    *   **Nonclustered Index:** Stores a separate copy of the indexed columns and a pointer to the data row. A table can have multiple nonclustered indexes.
-    *   **Unique Index:** Enforces uniqueness on the indexed column(s).
-    *   **Composite Index:** An index on multiple columns.
-
-*   **SQL Profiler and SQL Tuning Advisor (SQL Server):**
-    *   **SQL Profiler:** A tool for capturing and analyzing SQL Server events, such as query executions, stored procedure calls, and errors.
-    *   **SQL Tuning Advisor:** A tool that analyzes SQL queries and provides recommendations for performance improvements, such as adding indexes or rewriting queries.
-
-*   **Master DB, Model DB, MSDB, and Temp DB (SQL Server System Databases):**
-    *   **Master DB:** Stores system-level information about the SQL Server instance.
-    *   **Model DB:** A template database used for creating new user databases.
-    *   **MSDB:** Used by SQL Server Agent for scheduling jobs and storing other administrative information.
-    *   **Temp DB:** A temporary workspace used for storing intermediate results during query processing.
-
-*   **Types of tables in DB:**
-    *   **Permanent Tables:** Regular tables that store persistent data.
-    *   **Temporary Tables:** Tables that exist for the duration of a session or a specific task.
-    *   **Derived Tables (Subqueries):** Tables defined within a query using a subquery.
-    *   **Common Table Expressions (CTEs):** Named temporary result sets that can be referenced within a query.
-
-*   **Types of Functions:**
-    *   **Scalar Functions:** Return a single value.
-    *   **Table-Valued Functions:** Return a table.
-        *   **Inline Table-Valued Functions:** Defined with a single `SELECT` statement.
-        *   **Multi-statement Table-Valued Functions:** Defined with a `BEGIN...END` block and can contain multiple statements.
-
-*   **Windowing Functions:** Perform calculations across a set of rows that are related to the current row. Examples: `ROW_NUMBER()`, `RANK()`, `DENSE_RANK()`, `LAG()`, `LEAD()`, `SUM() OVER()`, `AVG() OVER()`.
-
-*   **Types of Variables:**
-    *   **Local Variables:** Declared within a batch, stored procedure, or function and are only accessible within that scope.
-    *   **Global Variables (System Variables):** Provided by the database system and store information about the server environment.
-
-*   **Write a dynamic query:** A query constructed as a string at runtime. Be very careful with dynamic SQL to prevent SQL injection.
-
-    ```sql
-    -- Example (SQL Server)
-    DECLARE @TableName VARCHAR(255) = 'Students';
-    DECLARE @SQL VARCHAR(MAX);
-
-    SET @SQL = 'SELECT * FROM ' + @TableName;
-
-    EXEC (@SQL); -- Or sp_executesql for parameterized queries
-    ```
-
-*   **Control of Flow Statements:** Statements that control the execution flow of SQL code (e.g., `IF...ELSE`, `WHILE`, `CASE`).
-
-*   **DB Integrity:** Ensuring the accuracy, consistency, and validity of data in a database.
-
-*   **`ON UPDATE CASCADE` and `ON DELETE SET NULL` (Referential Integrity):** Actions taken on a foreign key when the related primary key is updated or deleted.
-    *   `ON UPDATE CASCADE`: Updates the foreign key values in the related table when the primary key value is updated.
-    *   `ON DELETE SET NULL`: Sets the foreign key values to `NULL` in the related table when the primary key row is deleted.
-
-*   **Difference between PK, FK, and Unique:**
-    *   **Primary Key (PK):** Uniquely identifies each row in a table. Cannot be `NULL`.
-    *   **Foreign Key (FK):** A column in one table that refers to the primary key of another table. Establishes a link between the two tables.
-    *   **Unique:** Ensures that all values in a column are distinct. Can allow `NULL` values (unless explicitly disallowed).
-
-*   **Rule and Default (SQL Server - largely deprecated):** Older methods for enforcing data constraints and providing default values. Constraints and default constraints are the preferred methods now.
-
-*   **Difference between Constraints and Rules (SQL Server):** Constraints are the modern and preferred way to enforce data integrity. Rules are an older feature with limited functionality.
-
-*   **Create new data type (User-defined Data Types):** Allows creating custom data types based on existing data types.
-
-    ```sql
-    -- SQL Server
-    CREATE TYPE PhoneNumber FROM VARCHAR(20) NOT NULL;
-    ```
-
-*   **Schema:** A logical grouping of database objects (tables, views, stored procedures, etc.).
-
-*   **Create new user with permission to selected DB:**
-
-    ```sql
-    -- SQL Server
-    CREATE LOGIN NewUser WITH PASSWORD = 'Password123!';
-    CREATE USER NewUser FOR LOGIN NewUser;
-    GRANT SELECT ON TableName TO NewUser; -- Grant specific permissions
-    ```
-
-*   **Difference among `DROP`, `TRUNCATE`, and `DELETE`:**
-    *   `DROP`: Removes the entire table (structure and data).
-    *   `TRUNCATE`: Removes all rows from a table but keeps the table structure.
-    *   `DELETE`: Removes specific rows from a table based on a condition.
-
-*   **Ranking Functions:** Assign ranks to rows within a result set (e.g., `ROW_NUMBER()`, `RANK()`, `DENSE_RANK()`, `NTILE()`).
-
-*   **Date Types:** Data types used to store date and time values (e.g., `DATE`, `TIME`, `DATETIME`, `DATETIME2`, `DATETIMEOFFSET`).
-
-*   **Difference among `CAST`, `CONVERT`, and `FORMAT`:**
-    *   `CAST`: Converts a value from one data type to another.
-    *   `CONVERT`: Similar to `CAST` but provides more formatting options.
-    *   `FORMAT` (SQL Server 2012 and later): Used for formatting values as strings with specific culture settings.
-
-*   **Difference between SQL Addition and Version:** "Addition" likely refers to SQL Server editions (e.g., Enterprise, Standard, Express). "Version" refers to the specific release of SQL Server (e.g., 2016, 2019, 2022).
-
-*   **Instance (SQL Server):** A separate installation of SQL Server. You can have multiple instances running on the same server.
-
-*   **Difference between Authentication and Authorization:**
-    *   **Authentication:** Verifying the identity of a user.
-    *   **Authorization:** Determining what a user is allowed to do (permissions).
-
-*   **GUID (Globally Unique Identifier):** A 128-bit number used to uniquely identify objects.
-
-*   **Write a query to select a random student:**
-
-    ```sql
-    -- SQL Server
-    SELECT TOP 1 *
+END
+```
+
+Audit Trigger:
+```sql
+CREATE TABLE StudentAudit (
+    AuditID INT IDENTITY(1,1) PRIMARY KEY,
+    StudentID INT,
+    OldName VARCHAR(100),
+    NewName VARCHAR(100),
+    UpdateDate DATETIME
+)
+
+CREATE TRIGGER StudentUpdateAudit
+ON Students
+AFTER UPDATE
+AS
+BEGIN
+    INSERT INTO StudentAudit 
+    (StudentID, OldName, NewName, UpdateDate)
+    SELECT 
+        i.StudentID, 
+        d.Name AS OldName, 
+        i.Name AS NewName, 
+        GETDATE()
+    FROM inserted i
+    JOIN deleted d ON i.StudentID = d.StudentID
+END
+```
+
+## 15. Query Execution Plan
+Steps in Query Processing:
+1. Parsing
+2. Compilation
+3. Optimization
+4. Execution
+5. Result Generation
+
+Viewing Execution Plan:
+- Use `EXPLAIN`
+- SQL Server Management Studio (Actual Execution Plan)
+- Dynamic Management Views (DMVs)
+
+Example:
+```sql
+-- Enable Actual Execution Plan
+SET STATISTICS IO, TIME ON
+
+SELECT * FROM Students 
+WHERE Department = 'Computer Science'
+
+-- Analyze execution plan graphically
+```
+
+# Database Administrator Interview Guide (Advanced Concepts)
+
+## 16. Stored Procedures (SP)
+
+A stored procedure is a precompiled collection of SQL statements stored in the database as a named object. Think of it as a reusable function that can perform complex database operations.
+
+### Key Properties:
+- Improved performance through caching
+- Enhanced security through parameterization
+- Reduced network traffic
+- Modular and maintainable code
+
+### Types of Stored Procedures:
+1. **System Stored Procedures**
+```sql
+-- Example of a system stored procedure
+EXEC sp_helpdb  -- Provides information about databases
+```
+
+2. **User-Defined Stored Procedures**
+```sql
+CREATE PROCEDURE GetStudentsByDepartment
+    @Department NVARCHAR(50)
+AS
+BEGIN
+    SELECT * FROM Students 
+    WHERE Department = @Department
+END
+
+-- Execution
+EXEC GetStudentsByDepartment @Department = 'Computer Science'
+```
+
+3. **Temporary Stored Procedures**
+```sql
+-- Local temporary procedure
+CREATE PROCEDURE #TempStudentReport
+AS
+BEGIN
+    SELECT Department, COUNT(*) as StudentCount
     FROM Students
-    ORDER BY NEWID();
-    ```
+    GROUP BY Department
+END
+```
 
-*   **SQL Execution Ordering (Logical Query Processing Order):** The order in which SQL clauses are logically processed: `FROM`, `WHERE`, `GROUP BY`, `HAVING`, `SELECT`, `ORDER BY`, `LIMIT`/`OFFSET`.
+### Return Values
+Stored Procedures can return values:
+```sql
+CREATE PROCEDURE CalculateStudentCount
+    @DepartmentID INT,
+    @StudentCount INT OUTPUT
+AS
+BEGIN
+    SELECT @StudentCount = COUNT(*) 
+    FROM Students 
+    WHERE DepartmentID = @DepartmentID
+END
 
-*   **Difference among `UNION`, `UNION ALL`, `INTERSECT`, and `EXCEPT` (MINUS in some databases):** Set operators used to combine or compare result sets.
-    *   `UNION`: Combines result sets and removes duplicate rows.
-    *   `UNION ALL`: Combines result sets and keeps all rows, including duplicates.
-    *   `INTERSECT`: Returns rows that are common to both result sets.
-    *   `EXCEPT` (or `MINUS`): Returns rows that are in the first result set but not in the second.
+-- Calling with output
+DECLARE @Total INT
+EXEC CalculateStudentCount @DepartmentID = 1, @StudentCount = @Total OUTPUT
+PRINT @Total
+```
 
-*   **Create an empty copy of a table in the HR schema:**
+## 17. Views
 
-    ```sql
-    -- SQL Server
-    SELECT * INTO HR.NewTable FROM HR.OriginalTable WHERE 1=0; -- No rows will be copied
-    ```
+A view is a virtual table based on the result of a SQL statement, providing a way to simplify complex queries and add a layer of abstraction.
 
-*   **Aggregation Functions and Subqueries:**
-    *   **Aggregation Functions:** Perform calculations on a set of values and return a single value (e.g., `SUM()`, `AVG()`, `COUNT()`, `MIN()`, `MAX()`).
-    *   **Subqueries:** Queries nested inside another query.
+### Types of Views:
+1. **Standard View**
+```sql
+CREATE VIEW ActiveStudents AS
+SELECT StudentID, Name, Department
+FROM Students
+WHERE Status = 'Active'
+```
 
-You're right to keep me going! I want to make sure I provide the most complete and helpful response possible. It seems I had some repetition in the previous responses, and I want to address that and ensure all questions are thoroughly covered.
+2. **Indexed View (Materialized View)**
+```sql
+CREATE VIEW StudentSummary
+WITH SCHEMABINDING
+AS
+SELECT 
+    Department, 
+    COUNT_BIG(*) as TotalStudents,
+    AVG(Age) as AverageAge
+FROM dbo.Students
+GROUP BY Department
+```
 
-Let's recap and then address any remaining points or areas that need more detail.
+3. **Partitioned View**
+```sql
+CREATE VIEW StudentArchive
+AS
+SELECT * FROM Students2020
+UNION ALL
+SELECT * FROM Students2021
+UNION ALL
+SELECT * FROM Students2022
+```
 
-**Recap of Covered Topics:**
+### Data Manipulation
+```sql
+-- Inserting through a view
+CREATE VIEW StudentDetails AS
+SELECT StudentID, Name, Email
+FROM Students
+WHERE Department = 'Computer Science'
+WITH CHECK OPTION  -- Prevents inserting rows outside the view's filter
 
-I've covered a wide range of DBA interview topics, including:
+-- Insert operation
+INSERT INTO StudentDetails (Name, Email)
+VALUES ('New Student', 'student@example.com')
+```
 
-*   **Basic Database Concepts:** Data, DB, RDBMS, DB System, Entity-Attribute-Relationship, ERD, EERD, Super/Sub Entities, Normalization, Functional Dependency, DML Anomalies, DB Mapping, DB Life Cycle, DB System vs. File System, DB Users.
-*   **SQL Fundamentals:** Batch, Script, Transaction, ACID Properties, Cursors, String Aggregation, Backup Types, Identity Columns, DB Jobs, INSERT variations, Snapshots, SQLCLR, SQL Injection, Redgate, DQS, XML in SQL.
-*   **Database Objects and Advanced SQL:** Triggers (with examples), Execution Plans, Stored Procedures (with properties and types), Merge Statements, Views (with types), Rollup/Cube/Grouping Sets, Pivot/Unpivot, Indexes (with types), SQL Profiler/Tuning Advisor, System Databases, Table Types, Function Types, Windowing Functions, Variables, Dynamic SQL, Control Flow, DB Integrity, Referential Integrity (`ON UPDATE CASCADE`, `ON DELETE SET NULL`), Keys (PK, FK, Unique), Rules/Defaults/Constraints, User-Defined Data Types, Schemas, User Creation and Permissions, `DROP`/`TRUNCATE`/`DELETE`, Ranking Functions, Date Types, `CAST`/`CONVERT`/`FORMAT`, SQL Editions/Versions, Instances, Authentication/Authorization, GUIDs, Random Row Selection, SQL Execution Order, Set Operators (`UNION`, `UNION ALL`, `INTERSECT`, `EXCEPT`), Empty Table Copy, Aggregation/Subqueries.
+## 18. MERGE Statement
+A powerful SQL command that performs INSERT, UPDATE, or DELETE operations in a single statement.
 
-**Addressing Potential Gaps and Providing More Detail:**
+```sql
+MERGE INTO TargetStudents AS target
+USING SourceStudents AS source
+ON (target.StudentID = source.StudentID)
+WHEN MATCHED THEN
+    UPDATE SET 
+        target.Name = source.Name,
+        target.Email = source.Email
+WHEN NOT MATCHED THEN
+    INSERT (StudentID, Name, Email)
+    VALUES (source.StudentID, source.Name, source.Email)
+WHEN NOT MATCHED BY SOURCE THEN
+    DELETE;
+```
 
-I want to make sure the following are as clear as possible:
+## 19. ROLLUP, CUBE, and Grouping Sets
 
-*   **Normalization (with examples):** Let's illustrate with a simple example:
+### ROLLUP
+Generates subtotal rows for hierarchical aggregations:
+```sql
+SELECT 
+    Department, 
+    Course, 
+    COUNT(*) as StudentCount
+FROM Enrollments
+GROUP BY ROLLUP(Department, Course)
+```
 
-    *   **Unnormalized Table (StudentCourse):**
-        | StudentID | StudentName | CourseID | CourseName | Instructor |
-        | --------- | ----------- | -------- | ---------- | ---------- |
-        | 1         | John Doe    | 101      | Intro to CS | Dr. Smith  |
-        | 1         | John Doe    | 102      | Calculus    | Prof. Jones |
-        | 2         | Jane Doe    | 101      | Intro to CS | Dr. Smith  |
+### CUBE
+Creates subtotals for all possible combinations:
+```sql
+SELECT 
+    Department, 
+    Course, 
+    COUNT(*) as StudentCount
+FROM Enrollments
+GROUP BY CUBE(Department, Course)
+```
 
-    *   **1NF (First Normal Form):** Eliminate repeating groups.
+### Grouping Sets
+Allows multiple grouping specifications in a single query:
+```sql
+SELECT 
+    Department, 
+    Course, 
+    COUNT(*) as StudentCount
+FROM Enrollments
+GROUP BY GROUPING SETS 
+    ((Department, Course), 
+     (Department), 
+     (Course), 
+     ())
+```
 
-        | StudentID | StudentName | CourseID | CourseName | Instructor |
-        | --------- | ----------- | -------- | ---------- | ---------- |
-        | 1         | John Doe    | 101      | Intro to CS | Dr. Smith  |
-        | 1         | John Doe    | 102      | Calculus    | Prof. Jones |
-        | 2         | Jane Doe    | 101      | Intro to CS | Dr. Smith  |
+## 20. PIVOT and UNPIVOT
 
-    *   **2NF (Second Normal Form):** Be in 1NF and eliminate redundant data dependent on only part of a composite key (if one exists). In this case, we separate student and course information:
+### PIVOT
+Transforms rows into columns:
+```sql
+SELECT * FROM 
+(
+    SELECT Department, Semester, EnrollmentCount
+    FROM Enrollments
+) AS SourceTable
+PIVOT
+(
+    SUM(EnrollmentCount)
+    FOR Semester IN ([Spring], [Summer], [Fall])
+) AS PivotTable
+```
 
-        *   **Students Table:**
-            | StudentID | StudentName |
-            | --------- | ----------- |
-            | 1         | John Doe    |
-            | 2         | Jane Doe    |
+### UNPIVOT
+Transforms columns back to rows:
+```sql
+SELECT Department, Semester, EnrollmentCount
+FROM 
+(
+    SELECT Department, Spring, Summer, Fall
+    FROM EnrollmentSummary
+) AS SourceTable
+UNPIVOT
+(
+    EnrollmentCount FOR Semester IN (Spring, Summer, Fall)
+) AS UnpivotTable
+```
 
-        *   **Courses Table:**
-            | CourseID | CourseName | Instructor |
-            | -------- | ---------- | ---------- |
-            | 101      | Intro to CS | Dr. Smith  |
-            | 102      | Calculus    | Prof. Jones |
+# Database Administrator Interview Guide (Advanced Database Concepts)
 
-        *   **StudentCourses Table (Junction Table):**
-            | StudentID | CourseID |
-            | --------- | -------- |
-            | 1         | 101      |
-            | 1         | 102      |
-            | 2         | 101      |
+## 21. Indexes
 
-    *   **3NF (Third Normal Form):** Be in 2NF and eliminate transitive dependencies (where a non-key attribute depends on another non-key attribute). In our example, Instructor depends on CourseID, so we could further normalize:
+An index is a database object that improves the speed of data retrieval operations by creating a separate structure that allows faster searching.
 
-        *   **Instructors Table:**
-            | InstructorID | Instructor  |
-            | ------------- | ----------- |
-            | 1             | Dr. Smith   |
-            | 2             | Prof. Jones |
+### Types of Indexes:
 
-        *   **Courses Table (Revised):**
-            | CourseID | CourseName | InstructorID |
-            | -------- | ---------- | ------------- |
-            | 101      | Intro to CS | 1             |
-            | 102      | Calculus    | 2             |
+1. **Clustered Index**
+- Determines the physical order of data in a table
+- Only one per table
+- Typically created on the primary key
 
-        *   **Students and StudentCourses tables remain as in 2NF.**
+```sql
+CREATE CLUSTERED INDEX IX_Students_StudentID
+ON Students (StudentID)
+```
 
-*   **SQL Injection (with more detail and prevention):**
+2. **Non-Clustered Index**
+- Creates a separate structure pointing to data
+- Multiple allowed per table
+- Useful for frequently queried columns
 
-    *   **Example of Vulnerable Code:**
-        ```sql
-        -- Vulnerable to SQL injection
-        DECLARE @LastName VARCHAR(50) = 'O''Brian'; -- User input
-        DECLARE @SQL VARCHAR(MAX) = 'SELECT * FROM Users WHERE LastName = ''' + @LastName + '''';
-        EXEC (@SQL);
-        ```
-        An attacker could input `'; DROP TABLE Users; --` as the last name, resulting in the execution of `SELECT * FROM Users WHERE LastName = ''; DROP TABLE Users; --'`.
+```sql
+CREATE NONCLUSTERED INDEX IX_Students_LastName
+ON Students (LastName)
+INCLUDE (FirstName, Email)
+```
 
-    *   **Prevention (Parameterized Queries):**
-        ```sql
-        -- Safe from SQL injection
-        DECLARE @LastName VARCHAR(50) = 'O''Brian'; -- User input
+3. **Unique Index**
+- Ensures no duplicate values in indexed columns
 
-        EXEC sp_executesql N'SELECT * FROM Users WHERE LastName = @LastName',
-                             N'@LastName VARCHAR(50)',
-                             @LastName;
-        ```
+```sql
+CREATE UNIQUE NONCLUSTERED INDEX IX_Students_Email
+ON Students (Email)
+```
 
-*   **DML, DDL, DQL, DCL, TCL:**
-    *   **DML (Data Manipulation Language):** `SELECT`, `INSERT`, `UPDATE`, `DELETE`, `MERGE`.
-    *   **DDL (Data Definition Language):** `CREATE`, `ALTER`, `DROP`, `TRUNCATE`.
-    *   **DQL (Data Query Language):** `SELECT`. (Often considered a subset of DML)
-    *   **DCL (Data Control Language):** `GRANT`, `REVOKE`.
-    *   **TCL (Transaction Control Language):** `BEGIN TRANSACTION`, `COMMIT`, `ROLLBACK`, `SAVEPOINT`.
+4. **Composite Index**
+- Index on multiple columns
 
-You are absolutely correct! My apologies. I seem to have missed a few questions in my previous responses. Thank you for pointing that out. It's crucial to be thorough, especially in an interview context.
+```sql
+CREATE NONCLUSTERED INDEX IX_Students_NameDepartment
+ON Students (LastName, Department)
+```
 
-Let me address the questions I missed:
+## 22. SQL Profiler and SQL Tuning Advisor
 
-*   **What is the difference between SQL Addition and Version?**
+### SQL Profiler
+A graphical tool for monitoring and analyzing SQL Server events:
+- Captures detailed performance information
+- Helps identify performance bottlenecks
+- Tracks query execution details
 
-    *   **SQL Edition (or "Addition" as you put it):** Refers to the different product offerings of SQL Server, each with varying features and capabilities. Common editions include:
-        *   **Enterprise Edition:** The most comprehensive edition, with all features and high-availability options.
-        *   **Standard Edition:** A mid-range edition with a subset of Enterprise Edition features.
-        *   **Express Edition:** A free, entry-level edition with limitations on database size and resources.
-        *   **Web Edition:** Designed for web hosting scenarios.
-        *   **Developer Edition:** A full-featured edition for development and testing purposes, licensed for non-production use.
+Key Trace Events:
+- Performance-related events
+- Error events
+- Audit events
 
-    *   **SQL Version:** Refers to the specific release year or build number of SQL Server (e.g., SQL Server 2016, SQL Server 2017, SQL Server 2019, SQL Server 2022). Each new version introduces new features, performance improvements, and security updates.
+### SQL Tuning Advisor
+Automated tool for:
+- Analyzing query performance
+- Recommending indexes
+- Suggesting query optimizations
 
-*   **What is Instance?**
+## 23. System Databases
 
-    *   An instance of SQL Server is a separate, independent installation of the SQL Server database engine. You can have multiple instances of SQL Server running on the same physical server, each with its own set of system databases, user databases, and configuration settings. Instances are identified by a name (e.g., `MSSQLSERVER` for the default instance or a custom name like `SQLEXPRESS`).
+1. **Master Database**
+- Contains system-level configuration
+- Stores server-wide settings
+- Tracks all other databases
 
-*   **What are the steps to run a query (Execution Plan)?** I touched on this before, but let me elaborate:
+2. **Model Database**
+- Template for creating new databases
+- Default schema and settings
+- Used when creating new database instances
 
-    1.  **Parsing:** The SQL Server engine checks the syntax of the query to ensure it is valid SQL.
-    2.  **Binding (or Name Resolution):** The engine verifies that all objects referenced in the query (tables, columns, views, etc.) exist and that the user has the necessary permissions to access them.
-    3.  **Optimization:** The query optimizer analyzes the query and generates several possible execution plans. It then chooses the plan that it estimates will be the most efficient based on factors like indexes, data statistics, and available resources.
-    4.  **Execution:** The SQL Server engine executes the query according to the chosen execution plan, retrieving and processing the data as specified.
+3. **MSDB Database**
+- Stores scheduling and job information
+- Manages SQL Server Agent jobs
+- Tracks backup and restore history
 
-*   **What is EERD?**
+4. **Tempdb Database**
+- Temporary storage database
+- Handles:
+  - Temporary tables
+  - Table variables
+  - Query sorting and joining operations
+- Recreated each time SQL Server restarts
 
-    *   **EERD (Enhanced Entity-Relationship Diagram):** As mentioned before, it's an extension of the basic ERD model. EERDs introduce concepts like:
-        *   **Subtypes and Supertypes:** Representing inheritance relationships between entities (e.g., "Employee" as a supertype and "Manager" and "Salesperson" as subtypes).
-        *   **Specialization and Generalization:** Specialization is the process of defining subtypes from a supertype. Generalization is the reverse process of combining subtypes into a more general supertype.
-        *   **Categories (or Union Types):** Representing a subtype that can belong to more than one supertype.
-        *   **Aggregation and Composition:** Representing "part-of" relationships between entities.
+## 24. Types of Tables
 
-*   **What is DB Mapping and its steps?**
+1. **Permanent Tables**
+```sql
+CREATE TABLE Students (
+    StudentID INT PRIMARY KEY,
+    Name NVARCHAR(100),
+    Department NVARCHAR(50)
+)
+```
 
-    *   Database mapping is the process of transforming a conceptual data model (like an ERD or EERD) into a logical schema that can be implemented in a relational database. The key steps are:
-        1.  **Mapping Entities to Tables:** Each entity in the ERD becomes a table in the relational schema.
-        2.  **Mapping Attributes to Columns:** Each attribute of an entity becomes a column in the corresponding table.
-        3.  **Mapping Relationships:** Relationships between entities are implemented using foreign keys.
-            *   One-to-many relationships: Add a foreign key to the "many" side table referencing the primary key of the "one" side table.
-            *   Many-to-many relationships: Create a junction table (also called an associative table or bridge table) with foreign keys referencing the primary keys of both tables.
-        4.  **Resolving Complex Relationships:** Handling more complex relationships like ternary relationships or relationships with attributes.
+2. **Temporary Tables**
+- Local Temporary Table
+```sql
+CREATE TABLE #TempStudents (
+    StudentID INT,
+    Name NVARCHAR(100)
+)
+```
 
+- Global Temporary Table
+```sql
+CREATE TABLE ##GlobalTempStudents (
+    StudentID INT,
+    Name NVARCHAR(100)
+)
+```
 
+3. **Memory-Optimized Tables**
+```sql
+CREATE TABLE MemoryOptimizedStudents (
+    StudentID INT PRIMARY KEY NONCLUSTERED,
+    Name NVARCHAR(100)
+) WITH (MEMORY_OPTIMIZED = ON)
+```
 
+## 25. Database Functions
 
+### Types of Functions:
+1. **Scalar Functions**
+```sql
+CREATE FUNCTION dbo.CalculateStudentAge
+(
+    @BirthDate DATE
+)
+RETURNS INT
+AS
+BEGIN
+    RETURN DATEDIFF(YEAR, @BirthDate, GETDATE())
+END
+```
+
+2. **Table-Valued Functions**
+```sql
+CREATE FUNCTION dbo.GetStudentsByDepartment
+(
+    @Department NVARCHAR(50)
+)
+RETURNS TABLE
+AS
+RETURN
+(
+    SELECT * FROM Students
+    WHERE Department = @Department
+)
+```
+
+3. **Aggregate Functions**
+```sql
+-- Built-in aggregate functions
+SELECT 
+    AVG(Age) AS AverageAge,
+    COUNT(*) AS TotalStudents,
+    MAX(GPA) AS HighestGPA
+FROM Students
+```
+
+### Windowing Functions
+```sql
+-- Rank students within their department
+SELECT 
+    StudentName, 
+    Department, 
+    GPA,
+    RANK() OVER (PARTITION BY Department ORDER BY GPA DESC) AS DepartmentRank
+FROM Students
+```
+# Database Administrator Interview Guide (Advanced Database Concepts)
+
+## 21. Indexes
+
+An index is a database object that improves the speed of data retrieval operations by creating a separate structure that allows faster searching.
+
+### Types of Indexes:
+
+1. **Clustered Index**
+- Determines the physical order of data in a table
+- Only one per table
+- Typically created on the primary key
+
+```sql
+CREATE CLUSTERED INDEX IX_Students_StudentID
+ON Students (StudentID)
+```
+
+2. **Non-Clustered Index**
+- Creates a separate structure pointing to data
+- Multiple allowed per table
+- Useful for frequently queried columns
+
+```sql
+CREATE NONCLUSTERED INDEX IX_Students_LastName
+ON Students (LastName)
+INCLUDE (FirstName, Email)
+```
+
+3. **Unique Index**
+- Ensures no duplicate values in indexed columns
+
+```sql
+CREATE UNIQUE NONCLUSTERED INDEX IX_Students_Email
+ON Students (Email)
+```
+
+4. **Composite Index**
+- Index on multiple columns
+
+```sql
+CREATE NONCLUSTERED INDEX IX_Students_NameDepartment
+ON Students (LastName, Department)
+```
+
+## 22. SQL Profiler and SQL Tuning Advisor
+
+### SQL Profiler
+A graphical tool for monitoring and analyzing SQL Server events:
+- Captures detailed performance information
+- Helps identify performance bottlenecks
+- Tracks query execution details
+
+Key Trace Events:
+- Performance-related events
+- Error events
+- Audit events
+
+### SQL Tuning Advisor
+Automated tool for:
+- Analyzing query performance
+- Recommending indexes
+- Suggesting query optimizations
+
+## 23. System Databases
+
+1. **Master Database**
+- Contains system-level configuration
+- Stores server-wide settings
+- Tracks all other databases
+
+2. **Model Database**
+- Template for creating new databases
+- Default schema and settings
+- Used when creating new database instances
+
+3. **MSDB Database**
+- Stores scheduling and job information
+- Manages SQL Server Agent jobs
+- Tracks backup and restore history
+
+4. **Tempdb Database**
+- Temporary storage database
+- Handles:
+  - Temporary tables
+  - Table variables
+  - Query sorting and joining operations
+- Recreated each time SQL Server restarts
+
+## 24. Types of Tables
+
+1. **Permanent Tables**
+```sql
+CREATE TABLE Students (
+    StudentID INT PRIMARY KEY,
+    Name NVARCHAR(100),
+    Department NVARCHAR(50)
+)
+```
+
+2. **Temporary Tables**
+- Local Temporary Table
+```sql
+CREATE TABLE #TempStudents (
+    StudentID INT,
+    Name NVARCHAR(100)
+)
+```
+
+- Global Temporary Table
+```sql
+CREATE TABLE ##GlobalTempStudents (
+    StudentID INT,
+    Name NVARCHAR(100)
+)
+```
+
+3. **Memory-Optimized Tables**
+```sql
+CREATE TABLE MemoryOptimizedStudents (
+    StudentID INT PRIMARY KEY NONCLUSTERED,
+    Name NVARCHAR(100)
+) WITH (MEMORY_OPTIMIZED = ON)
+```
+
+## 25. Database Functions
+
+### Types of Functions:
+1. **Scalar Functions**
+```sql
+CREATE FUNCTION dbo.CalculateStudentAge
+(
+    @BirthDate DATE
+)
+RETURNS INT
+AS
+BEGIN
+    RETURN DATEDIFF(YEAR, @BirthDate, GETDATE())
+END
+```
+
+2. **Table-Valued Functions**
+```sql
+CREATE FUNCTION dbo.GetStudentsByDepartment
+(
+    @Department NVARCHAR(50)
+)
+RETURNS TABLE
+AS
+RETURN
+(
+    SELECT * FROM Students
+    WHERE Department = @Department
+)
+```
+
+3. **Aggregate Functions**
+```sql
+-- Built-in aggregate functions
+SELECT 
+    AVG(Age) AS AverageAge,
+    COUNT(*) AS TotalStudents,
+    MAX(GPA) AS HighestGPA
+FROM Students
+```
+
+### Windowing Functions
+```sql
+-- Rank students within their department
+SELECT 
+    StudentName, 
+    Department, 
+    GPA,
+    RANK() OVER (PARTITION BY Department ORDER BY GPA DESC) AS DepartmentRank
+FROM Students
+```
+
+# Database Administrator Interview Guide (Continued)
+
+## 26. Variables and Dynamic Query
+
+### Types of Variables
+
+1. **Local Variables**
+```sql
+-- Declare and use local variables
+DECLARE @StudentName NVARCHAR(100)
+DECLARE @StudentAge INT
+
+SET @StudentName = 'John Doe'
+SET @StudentAge = 22
+
+SELECT @StudentName AS Name, @StudentAge AS Age
+```
+
+2. **Table Variables**
+```sql
+DECLARE @StudentTemp TABLE (
+    StudentID INT,
+    Name NVARCHAR(100),
+    Department NVARCHAR(50)
+)
+
+INSERT INTO @StudentTemp
+SELECT StudentID, Name, Department
+FROM Students
+WHERE Department = 'Computer Science'
+```
+
+3. **Global Variables**
+```sql
+-- System global variables
+SELECT @@SERVERNAME AS ServerName
+SELECT @@VERSION AS SQLVersion
+```
+
+### Dynamic SQL Query
+```sql
+-- Dynamic query example
+DECLARE @DynamicSQL NVARCHAR(MAX)
+DECLARE @Department NVARCHAR(50) = 'Computer Science'
+
+SET @DynamicSQL = 
+    N'SELECT * FROM Students 
+     WHERE Department = @Dept'
+
+EXEC sp_executesql 
+    @DynamicSQL, 
+    N'@Dept NVARCHAR(50)', 
+    @Dept = @Department
+```
+
+## 27. Control of Flow Statements
+
+### Conditional Statements
+```sql
+-- IF-ELSE example
+IF EXISTS (SELECT 1 FROM Students WHERE GPA > 3.5)
+BEGIN
+    PRINT 'High-performing students exist'
+    
+    -- Nested conditions
+    IF (SELECT COUNT(*) FROM Students) > 1000
+    BEGIN
+        PRINT 'Large student population'
+    END
+    ELSE
+    BEGIN
+        PRINT 'Small student population'
+    END
+END
+ELSE
+BEGIN
+    PRINT 'No high-performing students found'
+END
+```
+
+### WHILE Loop
+```sql
+DECLARE @Counter INT = 1
+
+WHILE @Counter <= 10
+BEGIN
+    INSERT INTO StudentLog (LogEntry)
+    VALUES ('Processing batch ' + CAST(@Counter AS NVARCHAR(10)))
+    
+    SET @Counter = @Counter + 1
+    
+    -- Break condition
+    IF @Counter > 5
+        BREAK
+END
+```
+
+## 28. Database Integrity
+
+Database integrity ensures the accuracy, consistency, and reliability of data through:
+
+1. **Entity Integrity**
+- Ensures each row is uniquely identifiable
+- Implemented through PRIMARY KEY constraints
+
+2. **Referential Integrity**
+- Maintains relationships between tables
+- Implemented through FOREIGN KEY constraints
+
+```sql
+CREATE TABLE Departments (
+    DepartmentID INT PRIMARY KEY,
+    DepartmentName NVARCHAR(100)
+)
+
+CREATE TABLE Students (
+    StudentID INT PRIMARY KEY,
+    Name NVARCHAR(100),
+    DepartmentID INT,
+    FOREIGN KEY (DepartmentID) REFERENCES Departments(DepartmentID)
+)
+```
+
+## 29. Cascade Options
+
+### ON UPDATE CASCADE
+```sql
+CREATE TABLE Students (
+    StudentID INT PRIMARY KEY,
+    DepartmentID INT,
+    FOREIGN KEY (DepartmentID) 
+    REFERENCES Departments(DepartmentID)
+    ON UPDATE CASCADE
+)
+```
+
+### ON DELETE SET NULL
+```sql
+CREATE TABLE Enrollments (
+    EnrollmentID INT PRIMARY KEY,
+    StudentID INT,
+    CourseID INT,
+    FOREIGN KEY (StudentID) 
+    REFERENCES Students(StudentID)
+    ON DELETE SET NULL
+)
+```
+
+## 30. Key Constraints Comparison
+
+### Primary Key (PK)
+- Unique identifier for a table
+- Cannot contain NULL values
+- Only one per table
+
+### Foreign Key (FK)
+- References primary key in another table
+- Establishes relationships between tables
+- Can contain multiple foreign keys
+
+### Unique Constraint
+- Ensures unique values
+- Can contain NULL values
+- Multiple unique constraints allowed
+
+```sql
+CREATE TABLE Students (
+    StudentID INT PRIMARY KEY,  -- Primary Key
+    Email NVARCHAR(100) UNIQUE, -- Unique Constraint
+    DepartmentID INT,           -- Foreign Key
+    FOREIGN KEY (DepartmentID) REFERENCES Departments(DepartmentID)
+)
+```
+
+# Database Administrator Interview Guide (Advanced Concepts)
+
+## 31. Rules and Defaults
+
+### Rules
+Custom validation constraints for column values:
+
+```sql
+-- Create a rule to limit student age
+CREATE RULE AgeValidationRule
+AS @Age BETWEEN 16 AND 100
+
+-- Bind the rule to a column
+EXEC sp_bindrule 'AgeValidationRule', 'Students.Age'
+```
+
+### Defaults
+Provide default values when no explicit value is specified:
+
+```sql
+-- Create a default value
+CREATE DEFAULT StudentStatusDefault
+AS 'Active'
+
+-- Bind default to a column
+EXEC sp_bindefault 'StudentStatusDefault', 'Students.Status'
+```
+
+## 32. Constraints vs. Rules
+
+### Constraints
+- Enforced at the database level
+- Part of table definition
+- Immediate validation
+- Preferred modern approach
+
+```sql
+CREATE TABLE Students (
+    StudentID INT PRIMARY KEY,
+    Age INT CHECK (Age BETWEEN 16 AND 100),
+    Email NVARCHAR(100) UNIQUE,
+    RegistrationDate DATE DEFAULT GETDATE()
+)
+```
+
+### Rules
+- Less flexible
+- Can be applied after table creation
+- Limited to specific data types
+- Gradually being replaced by constraints
+
+## 33. Creating Custom Data Types
+
+```sql
+-- Create a custom data type
+CREATE TYPE EmailAddress 
+FROM NVARCHAR(100) NOT NULL
+
+-- Use in table creation
+CREATE TABLE Users (
+    UserID INT PRIMARY KEY,
+    Email EmailAddress
+)
+```
+
+## 34. Database Schema
+
+A schema is a logical container for database objects:
+
+```sql
+-- Create a new schema
+CREATE SCHEMA Academic
+
+-- Create table within schema
+CREATE TABLE Academic.Students (
+    StudentID INT PRIMARY KEY,
+    Name NVARCHAR(100)
+)
+
+-- Create user with schema permissions
+CREATE USER DatabaseAdministrator 
+WITH PASSWORD = 'SecurePassword123!'
+
+-- Grant schema permissions
+GRANT SELECT, INSERT, UPDATE ON SCHEMA::Academic TO DatabaseAdministrator
+```
+
+## 35. User Creation and Permissions
+
+```sql
+-- Create a new database user
+CREATE LOGIN DatabaseManager 
+WITH PASSWORD = 'StrongPassword456!'
+
+-- Create user in specific database
+USE UniversityDB
+CREATE USER DatabaseManager 
+FROM LOGIN DatabaseManager
+
+-- Grant specific database permissions
+GRANT SELECT, INSERT ON Students TO DatabaseManager
+GRANT EXECUTE ON SCHEMA::dbo TO DatabaseManager
+```
+
+## 36. Data Manipulation Comparison
+
+### DELETE
+- Removes specific rows
+- Can be rolled back
+- Triggers are fired
+- Logs are generated
+
+```sql
+DELETE FROM Students WHERE StudentID = 100
+```
+
+### TRUNCATE
+- Removes all rows
+- Cannot be rolled back
+- No triggers
+- Faster than DELETE
+- Resets identity column
+
+```sql
+TRUNCATE TABLE Students
+```
+
+### DROP
+- Removes entire table structure
+- Deletes all data
+- Removes indexes, constraints
+- Cannot be easily recovered
+
+```sql
+DROP TABLE Students
+```
+
+## 37. Ranking Functions
+
+```sql
+-- Demonstrate ranking functions
+SELECT 
+    StudentName,
+    Department,
+    GPA,
+    RANK() OVER (PARTITION BY Department ORDER BY GPA DESC) AS DepartmentRank,
+    DENSE_RANK() OVER (ORDER BY GPA DESC) AS OverallDenseRank,
+    ROW_NUMBER() OVER (ORDER BY GPA DESC) AS RowNumber,
+    NTILE(4) OVER (ORDER BY GPA DESC) AS GPAQuartile
+FROM Students
+```
+
+## 38. Date Types and Conversions
+
+### Date Types
+- DATE: Store date only
+- TIME: Store time only
+- DATETIME: Date and time
+- DATETIME2: More precise date and time
+- DATETIMEOFFSET: Includes time zone
+
+```sql
+-- Date conversion examples
+SELECT 
+    CAST('2023-12-31' AS DATE) AS CastedDate,
+    CONVERT(VARCHAR, GETDATE(), 101) AS FormattedDate,
+    FORMAT(GETDATE(), 'yyyy-MM-dd') AS FormattedDateCustom
+```
+
+### Conversion Functions
+- CAST: Standard SQL conversion
+- CONVERT: SQL Server-specific with more formatting options
+- FORMAT: Most flexible but slower
+
+# Database Administrator Interview Guide (Advanced Theoretical Concepts)
+
+## 39. Authentication vs. Authorization
+
+### Authentication
+Authentication is the process of verifying the identity of a user attempting to access a database system. It answers the fundamental question: "Who are you?"
+
+Authentication Methods:
+1. **Windows Authentication (Integrated Security)**
+```sql
+-- Connection string using Windows Authentication
+Server=myServerAddress;Database=myDataBase;Trusted_Connection=True;
+```
+
+2. **SQL Server Authentication**
+```sql
+-- Connection using SQL Server login
+Server=myServerAddress;Database=myDataBase;User Id=myUsername;Password=myPassword;
+```
+
+### Authorization
+Authorization determines what actions an authenticated user is allowed to perform. It answers the question: "What are you allowed to do?"
+
+Authorization Levels:
+```sql
+-- Grant SELECT permission
+GRANT SELECT ON Students TO DatabaseUser
+
+-- Deny DELETE permission
+DENY DELETE ON Students TO DatabaseUser
+
+-- Revoke UPDATE permission
+REVOKE UPDATE ON Students FROM DatabaseUser
+```
+
+## 40. GUID (Globally Unique Identifier)
+
+A GUID is a 128-bit unique identifier used to ensure global uniqueness across systems and databases.
+
+```sql
+-- Create a table with GUID primary key
+CREATE TABLE Students (
+    StudentID UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+    Name NVARCHAR(100),
+    Email NVARCHAR(100)
+)
+
+-- Generate a new GUID
+DECLARE @NewGUID UNIQUEIDENTIFIER = NEWID()
+```
+
+## 41. Random Data Selection
+
+```sql
+-- Select random student
+SELECT TOP 1 *
+FROM Students
+ORDER BY NEWID()
+
+-- Alternative approach using TABLESAMPLE
+SELECT * 
+FROM Students TABLESAMPLE (10 ROWS)
+```
+
+## 42. SQL Execution Order
+
+The logical order of SQL query execution:
+1. FROM
+2. WHERE
+3. GROUP BY
+4. HAVING
+5. SELECT
+6. ORDER BY
+7. LIMIT/TOP
+
+Example demonstrating execution order:
+```sql
+SELECT 
+    Department, 
+    AVG(Salary) AS AverageSalary
+FROM Employees
+WHERE Employment = 'Full-Time'
+GROUP BY Department
+HAVING AVG(Salary) > 50000
+ORDER BY AverageSalary DESC
+```
+
+## 43. Set Operations
+
+### UNION vs. UNION ALL vs. INTERSECT vs. EXCEPT
+
+```sql
+-- UNION (removes duplicates)
+SELECT StudentName FROM UndergraduateStudents
+UNION
+SELECT StudentName FROM GraduateStudents
+
+-- UNION ALL (keeps all rows)
+SELECT StudentName FROM UndergraduateStudents
+UNION ALL
+SELECT StudentName FROM GraduateStudents
+
+-- INTERSECT (common rows)
+SELECT StudentName FROM UndergraduateStudents
+INTERSECT
+SELECT StudentName FROM HonorRollStudents
+
+-- EXCEPT (rows in first query not in second)
+SELECT StudentName FROM AllStudents
+EXCEPT
+SELECT StudentName FROM GraduateStudents
+```
+
+## 44. Create Empty Table Copy
+
+```sql
+-- Create an empty copy of a table in HR schema
+SELECT *
+INTO HR.StudentsCopy
+FROM Students
+WHERE 1 = 0  -- False condition ensures no data is copied
+```
+
+## 45. Enhanced Entity-Relationship Diagram (EERD)
+
+An advanced version of ERD that includes:
+- Inheritance relationships
+- Specialization
+- Generalization
+- More detailed attribute representation
+
+Conceptual Example:
+```
+Person (Abstract Entity)
+|
++-- Student (Specialized Entity)
+|   - StudentID
+|   - EnrollmentDate
+|
++-- Faculty (Specialized Entity)
+    - EmployeeID
+    - Department
+```
+
+## 46. Specialization and Inheritance
+
+### Types of Inheritance
+1. **Total Specialization**
+   - All entities in the parent class must be in a subclass
+   
+2. **Partial Specialization**
+   - Not all parent entities must be in a subclass
+
+### Disjoint vs. Overlapping
+- **Disjoint**: An entity can belong to only one subclass
+- **Overlapping**: An entity can belong to multiple subclasses
+
+```sql
+-- Modeling inheritance in database
+CREATE TABLE Person (
+    PersonID INT PRIMARY KEY,
+    Name NVARCHAR(100),
+    Email NVARCHAR(100)
+)
+
+CREATE TABLE Student (
+    StudentID INT PRIMARY KEY,
+    PersonID INT,
+    Major NVARCHAR(50),
+    FOREIGN KEY (PersonID) REFERENCES Person(PersonID)
+)
+
+CREATE TABLE Faculty (
+    FacultyID INT PRIMARY KEY,
+    PersonID INT,
+    Department NVARCHAR(50),
+    FOREIGN KEY (PersonID) REFERENCES Person(PersonID)
+)
+```
+# Database Administrator Interview Guide (Advanced Theoretical Concepts)
+
+## 47. Aggregate Functions and Subqueries
+
+### Aggregate Functions
+Aggregate functions perform calculations across a set of rows, providing summarized information about data.
+
+```sql
+-- Comprehensive aggregation example
+SELECT 
+    Department,
+    COUNT(*) AS TotalStudents,
+    AVG(GPA) AS AverageGPA,
+    MAX(Age) AS OldestStudent,
+    MIN(Age) AS YoungestStudent,
+    SUM(Scholarship) AS TotalScholarshipAmount
+FROM Students
+GROUP BY Department
+```
+
+### Subqueries
+Subqueries are nested queries that provide data to the main query, allowing complex data retrieval and filtering.
+
+Types of Subqueries:
+1. **Scalar Subquery** (Returns single value)
+```sql
+-- Find students with GPA higher than department average
+SELECT StudentName, GPA
+FROM Students s1
+WHERE GPA > (
+    SELECT AVG(GPA) 
+    FROM Students s2 
+    WHERE s2.Department = s1.Department
+)
+```
+
+2. **Correlated Subquery** (Depends on outer query)
+```sql
+-- Find top-performing students in each department
+SELECT StudentName, Department, GPA
+FROM Students s1
+WHERE GPA = (
+    SELECT MAX(GPA) 
+    FROM Students s2 
+    WHERE s2.Department = s1.Department
+)
+```
+
+## 48. Normalization
+
+Normalization is a systematic approach to decomposing tables to eliminate data redundancy and improve data integrity.
+
+### Normalization Levels (Normal Forms):
+
+1. **First Normal Form (1NF)**
+- Eliminate repeating groups
+- Identify unique column(s)
+- Each column contains atomic values
+
+```sql
+-- Before 1NF
+StudentID | Courses
+1        | Math,Physics,Chemistry
+
+-- After 1NF
+StudentID | Course
+1        | Math
+1        | Physics
+1        | Chemistry
+```
+
+2. **Second Normal Form (2NF)**
+- Must be in 1NF
+- Remove partial dependencies
+- All non-key columns fully depend on primary key
+
+3. **Third Normal Form (3NF)**
+- Must be in 2NF
+- Remove transitive dependencies
+- No non-key column depends on another non-key column
+
+## 49. Functional Dependency
+
+Functional dependency describes the relationship between attributes in a relation.
+
+Example:
+- StudentID → (Name, Email, Department)
+- This means StudentID uniquely determines Name, Email, and Department
+
+### Types of Functional Dependencies:
+- **Full Functional Dependency**
+- **Partial Functional Dependency**
+- **Transitive Functional Dependency**
+
+## 50. DML Anomalies
+
+Anomalies occur when data is inserted, updated, or deleted, causing data inconsistencies.
+
+Types of Anomalies:
+1. **Insertion Anomaly**
+2. **Update Anomaly**
+3. **Deletion Anomaly**
+
+```sql
+-- Example showing potential anomaly
+CREATE TABLE CourseEnrollment (
+    InstructorName VARCHAR(100),
+    InstructorDepartment VARCHAR(50),
+    CourseCode VARCHAR(10),
+    CourseName VARCHAR(100)
+)
+
+-- Insertion Anomaly: Cannot add a new course without an instructor
+-- Update Anomaly: Updating instructor name requires multiple row updates
+-- Deletion Anomaly: Deleting last enrollment loses course information
+```
+
+## 51. Types of Joins
+
+```sql
+-- Inner Join (Returns matching records)
+SELECT s.StudentName, c.CourseName
+FROM Students s
+INNER JOIN Enrollments e ON s.StudentID = e.StudentID
+INNER JOIN Courses c ON e.CourseID = c.CourseID
+
+-- Left Join (All records from left table)
+SELECT s.StudentName, c.CourseName
+FROM Students s
+LEFT JOIN Enrollments e ON s.StudentID = e.StudentID
+
+-- Right Join (All records from right table)
+SELECT s.StudentName, c.CourseName
+FROM Students s
+RIGHT JOIN Enrollments e ON s.StudentID = e.StudentID
+
+-- Full Outer Join (All records from both tables)
+SELECT s.StudentName, c.CourseName
+FROM Students s
+FULL OUTER JOIN Enrollments e ON s.StudentID = e.StudentID
+
+-- Cross Join (Cartesian Product)
+SELECT s.StudentName, c.CourseName
+FROM Students s
+CROSS JOIN Courses c
+```
+
+## 52. Database Mapping
+
+Database mapping is the process of defining relationships between different database objects and schemas.
+
+Mapping Steps:
+1. Identify Entities
+2. Define Attributes
+3. Establish Relationships
+4. Normalize Structure
+5. Create Physical Schema
+
+## 53. SQL Command Categories
+
+1. **DML (Data Manipulation Language)**
+   - SELECT
+   - INSERT
+   - UPDATE
+   - DELETE
+
+2. **DDL (Data Definition Language)**
+   - CREATE
+   - ALTER
+   - DROP
+   - TRUNCATE
+
+3. **DCL (Data Control Language)**
+   - GRANT
+   - REVOKE
+
+4. **TCL (Transaction Control Language)**
+   - COMMIT
+   - ROLLBACK
+   - SAVEPOINT
+
+Would you like me to continue with the final topics in the database administrator interview guide?
